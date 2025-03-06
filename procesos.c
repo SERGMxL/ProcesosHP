@@ -1,12 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <math.h>    /* Asegúrate de que esta línea esté correctamente incluida */
-#include <sys/wait.h> // Para wait()
+#include <math.h>
+#include <sys/wait.h>
 
-/* NOTA IMPORTANTE: Este programa requiere ser compilado con la bandera -lm
-   En CodeBlocks: Project -> Build options -> Linker settings -> 
-   añadir "-lm" en "Other linker options" */
 
 int main() {
     double x;
