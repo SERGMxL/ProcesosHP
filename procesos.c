@@ -4,115 +4,90 @@
 #include <math.h>
 #include <sys/wait.h>
 
-
 int main() {
-    double x;
-    printf("Ingrese el valor de X: ");
+    int pipe_padre_hijo1[2];
+    int pipe_hijo1_padre[2];
+    int pipe_padre_hijo2[2];
+    int pipe_hijo2_padre[2];
+    pid_t pid_hijo1, pid_hijo2;
+    double x, resultado_hijo1, resultado_hijo2, resultado_final;
+
+    if (pipe(pipe_padre_hijo1) == -1 || pipe(pipe_hijo1_padre) == -1 ||
+        pipe(pipe_padre_hijo2) == -1 || pipe(pipe_hijo2_padre) == -1) {
+        return 1;
+    }
+
+    printf("Introduce el valor de X: ");
     scanf("%lf", &x);
-    
-    // Tuberías para enviar x a los hijos
-    int pipe1[2], pipe2[2]; 
-    // Tuberías para recibir resultados de los hijos
-    int pipe1_resultado[2], pipe2_resultado[2];
-    
-    // Crear todas las tuberías necesarias
-    if (pipe(pipe1) == -1 || pipe(pipe2) == -1 || 
-        pipe(pipe1_resultado) == -1 || pipe(pipe2_resultado) == -1) {
-        perror("Error al crear pipes");
-        exit(1);
+
+    pid_hijo1 = fork();
+    if (pid_hijo1 == -1) {
+        return 1;
     }
-    
-    pid_t pid1 = fork();
-    if (pid1 == -1) {
-        perror("Error al crear el primer hijo");
-        exit(1);
-    }
-    
-    if (pid1 == 0) {
-        // Primer hijo: Recibe x, calcula (x - 5) y lo envía de vuelta
-        close(pipe1[1]); // Cierra escritura entrada
-        close(pipe1_resultado[0]); // Cierra lectura resultado
-        close(pipe2[0]); // Cierra descriptores no usados
-        close(pipe2[1]);
-        close(pipe2_resultado[0]);
-        close(pipe2_resultado[1]);
-        
-        double x_hijo;
-        read(pipe1[0], &x_hijo, sizeof(x_hijo)); // Lee x enviado por el padre
-        close(pipe1[0]); // Cierra lectura
-        
-        double resultado = x_hijo - 5; // Realiza la operación
-        
-        // Envía el resultado al padre
-        write(pipe1_resultado[1], &resultado, sizeof(resultado));
-        close(pipe1_resultado[1]); // Cierra escritura
-        
+
+    if (pid_hijo1 == 0) {
+        close(pipe_padre_hijo1[1]);
+        close(pipe_hijo1_padre[0]);
+        close(pipe_padre_hijo2[0]);
+        close(pipe_padre_hijo2[1]);
+        close(pipe_hijo2_padre[0]);
+        close(pipe_hijo2_padre[1]);
+
+        read(pipe_padre_hijo1[0], &x, sizeof(x));
+        resultado_hijo1 = x - 5;
+        printf("Hijo 1: X - 5 = %lf\n", resultado_hijo1);
+        write(pipe_hijo1_padre[1], &resultado_hijo1, sizeof(resultado_hijo1));
+
+        close(pipe_padre_hijo1[0]);
+        close(pipe_hijo1_padre[1]);
         exit(0);
     }
-    
-    pid_t pid2 = fork();
-    if (pid2 == -1) {
-        perror("Error al crear el segundo hijo");
-        exit(1);
+
+    pid_hijo2 = fork();
+    if (pid_hijo2 == -1) {
+        return 1;
     }
-    
-    if (pid2 == 0) {
-        // Segundo hijo: Recibe x, calcula (2 + sin(x)) y lo envía de vuelta
-        close(pipe2[1]); // Cierra escritura entrada
-        close(pipe2_resultado[0]); // Cierra lectura resultado
-        close(pipe1[0]); // Cierra descriptores no usados
-        close(pipe1[1]);
-        close(pipe1_resultado[0]);
-        close(pipe1_resultado[1]);
-        
-        double x_hijo;
-        read(pipe2[0], &x_hijo, sizeof(x_hijo)); // Lee x enviado por el padre
-        close(pipe2[0]); // Cierra lectura
-        
-        double resultado = 2 + sin(x_hijo); // Requiere compilar con -lm
-        
-        // Envía el resultado al padre
-        write(pipe2_resultado[1], &resultado, sizeof(resultado));
-        close(pipe2_resultado[1]); // Cierra escritura
-        
+
+    if (pid_hijo2 == 0) {
+        close(pipe_padre_hijo2[1]);
+        close(pipe_hijo2_padre[0]);
+        close(pipe_padre_hijo1[0]);
+        close(pipe_padre_hijo1[1]);
+        close(pipe_hijo1_padre[0]);
+        close(pipe_hijo1_padre[1]);
+
+        read(pipe_padre_hijo2[0], &x, sizeof(x));
+        resultado_hijo2 = 2 + sin(x);
+        printf("Hijo 2: 2 + sin(X) = %lf\n", resultado_hijo2);
+        write(pipe_hijo2_padre[1], &resultado_hijo2, sizeof(resultado_hijo2));
+
+        close(pipe_padre_hijo2[0]);
+        close(pipe_hijo2_padre[1]);
         exit(0);
     }
-    
-    // Proceso padre
-    // Cierra los extremos de las tuberías que no se usarán
-    close(pipe1[0]); // Cierra lectura de entrada
-    close(pipe2[0]); // Cierra lectura de entrada
-    close(pipe1_resultado[1]); // Cierra escritura de resultado
-    close(pipe2_resultado[1]); // Cierra escritura de resultado
-    
-    // Envía x a los hijos
-    write(pipe1[1], &x, sizeof(x)); // Envía x al primer hijo
-    write(pipe2[1], &x, sizeof(x)); // Envía x al segundo hijo
-    
-    // Cierra escritura después de enviar los datos
-    close(pipe1[1]);
-    close(pipe2[1]);
-    
-    // Espera a que los hijos terminen
+
+    close(pipe_padre_hijo1[0]);
+    close(pipe_hijo1_padre[1]);
+    close(pipe_padre_hijo2[0]);
+    close(pipe_hijo2_padre[1]);
+
+    write(pipe_padre_hijo1[1], &x, sizeof(x));
+    write(pipe_padre_hijo2[1], &x, sizeof(x));
+
+    read(pipe_hijo1_padre[0], &resultado_hijo1, sizeof(resultado_hijo1));
+    read(pipe_hijo2_padre[0], &resultado_hijo2, sizeof(resultado_hijo2));
+
+    resultado_final = fabs(resultado_hijo1 / resultado_hijo2);
+    printf("Padre: |(%lf) / (%lf)| = %lf\n", resultado_hijo1, resultado_hijo2, resultado_final);
+    printf("Resultado final = %lf\n", resultado_final);
+
     wait(NULL);
     wait(NULL);
-    
-    // Recibe los resultados
-    double numerador, denominador;
-    read(pipe1_resultado[0], &numerador, sizeof(numerador));
-    read(pipe2_resultado[0], &denominador, sizeof(denominador));
-    
-    // Cierra lectura después de recibir los datos
-    close(pipe1_resultado[0]);
-    close(pipe2_resultado[0]);
-    
-    // Verifica que el denominador no sea 0 antes de dividir
-    if (denominador != 0) {
-        double resultado_final = fabs(numerador / denominador);
-        printf("Resultado final |(x - 5) / (2 + sin(x))| = %lf\n", resultado_final);
-    } else {
-        printf("Error: División por cero\n");
-    }
-    
+
+    close(pipe_padre_hijo1[1]);
+    close(pipe_hijo1_padre[0]);
+    close(pipe_padre_hijo2[1]);
+    close(pipe_hijo2_padre[0]);
+
     return 0;
 }
